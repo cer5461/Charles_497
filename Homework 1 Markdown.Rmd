@@ -1,0 +1,65 @@
+---
+title: "Homework 1"
+author: "Charles Ryan"
+date: "2/8/2021"
+output: html_document
+---
+#Question 1) What are latent variables?
+
+
+Latent variables are variables that are inferred based on our analysis of variables that are directly observed. For example, in Professor Munger’s analysis of Pitchfork reviewers, the latent variable is the harshness of the reviewer, which is being inferred based on each reviewers’ rating of music. 
+
+#Question 2) What is stemming? How is it different from lemmatization? 
+
+Stemming and lemmatization are two different approaches to resolving one of the most important steps of textual analysis; the use of different forms of words that actually convey the same meaning. Stemming and lemmatization are similar in that they are both ways to trace these different forms of words back to same root. However, they do not do perform this important task in the same way. Stemming traces the various forms of the same word back to its root by “chopping off” the affixes: jumped and jumping both become jump (Lecture). Although this process is relatively easy, it is crude and can cause challenges. For example, stemming may trace words back to a root that is not actually a real word. Lemmatization is a less crude but more complicated approach. Rather than finding the root via blunt force trauma, lemmatization uses a “vocabulary, parts of speech context, and mapping rules,” meaning that lemmatization can trace “saw” back to “see” (Lecture). Stemming is not capable of this distinction, which makes lemmatization valuable, but it is highly computationally intensive and requires more technical know-how than stemming. 
+
+#Question 3) What is a document term matrix? Why is it usually sparse? 
+
+As we learned in lecture last week, documents are composed of vectors where each input refers to the number of times that a given “token” appears in the document. In performing textual analysis, we want to aggregate these vectors by stacking them on top of each other, which creates the document term matrix (DTM). The DTM is usually sparse because the documents we analyze are often large and have a lot of different words that are used relatively infrequently. 
+
+#Question 4) Explain the tf-idf statistic and the advantage of using it 
+
+The term frequency-inverse document frequency statistic is a combination of our measures term frequency and our measure of the inverse document frequency. Term frequency refers to the number of times that a given word appears in a given document while document frequency refers to the number of documents within which a given word appears. This measure is mathematically adjusted to show the inverse of this measure for functional purposes. The tf-idf statistic is valuable because it allows us to recognize which words across a corpus are important. For example, a word that is used frequently in one document document but infrequently in the corpus will exhibit a high term frequency statistic and a high inverse document frequency statistic. This suggests that the word is important. Therefore, we can weight the word in our analysis to capture its relative importance to the other documents. If we do this a lot, we can determine how the documents differ from one another, which is a fundamental element of successful textual analysis. 
+
+#CODING TASKS
+
+#Question 1) Use the Quanteda R package and load in the corpus of presidential inaugural addresses, 'data_corpus_inaugural'. Summarize the corpus.
+
+Here, I load the Quanteda package, which is useful for performing descriptive statistics on texts
+```{r setup, include=FALSE}
+require(quanteda)
+```
+
+Next, I load in corpus of presidential inaugural addresses - 'data_corpus_inaugural.' There is no need to load the corpus of presidential inaugural addresses separetely, because it is pre-loaded with the Quanteda package. Instead, I summarize the corpus of presidential inaugural addresses. 
+```{}
+summary(data_corpus_inaugural)
+```
+
+#Question 2) Using the docvars function, save the last name of the presidents in a vector
+Here, I assign "corpus" to "data_corpus_inaugural"
+```{}
+corp <- data_corpus_inaugural
+```
+
+Next, I save the vector of the last names of the presidents as "lastname"
+```{}
+lastname <- docvars(corp, "President")
+```
+Here, I check lastname vector to ensure it has all presidents
+```{}
+lastname
+```
+
+#Question 3) Create a document term matrix (aka document feature matrix) to create a matrix of counts of the occurrences of each word in each document. Report the dimensions of this matrix.
+
+Here, I create a document feature matrix (dfm)
+```{}
+presDfm <- dfm(data_corpus_inaugural, remove = stopwords("english"))
+```
+Next, I show the details of the document feature matrix
+```{}
+presDfm
+```
+The document feature matrix is composed of 58 documents and has 9,224 features. The matrix is 92.6% sparse, meaning that 92.6% of the cells contain "0" 
+
+

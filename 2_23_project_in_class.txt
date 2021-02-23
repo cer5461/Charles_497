@@ -1,0 +1,22 @@
+
+What research question do you want to answer?
+
+I'm not sure. I am interested in whether people state that they learned anything on social media as indicated by their response to Instagram memes or Twitter posts, etc. Do people express knowledge gain on social media?  
+
+
+What are two possible answers?
+
+No, people do not, as evidenced by the words they use in in their responses. 
+
+No, but it is not indicative of any real phenomenon, since people are unlikely to do so in any space
+
+
+What are the documents of text data you will analyze?
+
+Data from comment sections from instagram memes or twitter threads
+
+Give two examples of documents in the corpus that you expect will be high in similarity to each other? Two examples that are *low* in similarity?
+
+I'm not sure. 
+
+

@@ -1,0 +1,676 @@
+---
+title: "Homework 3 Mkd"
+author: "Charles Ryan"
+date: "4/7/2021"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+# Part 1
+
+## Question 1 
+### a. 
+
+Test Sentence: “immigration voter aliens help economy”
+
+First we calculate the individual probabilities for each of the words conditional on class. 
+Words: immigration, voter, aliens, help, economy
+
+Democrat words: total = 20
+Republican words: 15
+Pr(immigration | D) = 1/20
+Pr(immigration | R) = 1/15
+Pr(voter | D) = 1/20
+Pr(voter | R) = 1/15
+Pr(aliens | D) = 0
+Pr(voter | R) = 1/15
+Pr(help | D) = 4/20
+Pr(help | R) = 1/15
+Pr(economy | D) = 1/20 
+Pr(economy | R) = 1/15 
+
+Pr(R | Doc) = (1/15*1/15*1/15*1/15*1/15*3/7) = .00000056
+Pr(D | Doc) = (1/20*1/20*0*4/20*1/20*4/7) = 0
+
+Based on these estimates, the Republican party sent the email because the probability of Republican conditional on the document is higher than the probability of Democrat conditional on the document. 
+
+### b. 
+
+Here we implement Laplace smoothing, which involves adding one to each count to avoid multiplying by 0 and producing a posterior count of 0. Embedded within smoothing is the assumption that each word in the document will occur at least once for both Republicans and Democrats. This makes sense, in my view, because these sentences are merely a subset of all the language produced by Democrats and Republicans, and because the two party's are frequently in indirect communication with each other, it is likely that Democrats/Republicans will at some point employ the language that is more associated with the the other party. For example, Democrats may use the word "alien" in a challenge to Republicans xenophobic language, such as "Immigrants arent' aliens, they are people." With Laplace smoothing in place, I preduct that Democrats sent the mystery email because of the high frequency of the word "help" in emails sent by Democrats. 
+
+Pr(immigration | D) = 2/20
+Pr(immigration | R) = 2/15
+Pr(voter | D) = 2/20
+Pr(voter | R) = 2/15
+Pr(aliens | D) = 1
+Pr(voter | R) = 2/15
+Pr(help | D) = 5/20
+Pr(help | R) = 2/15
+Pr(economy | D) = 2/20 
+Pr(economy | R) = 2/15 
+Pr(R | Doc) = (2/15*2/15*2/15*2/15*2/15*3/7) = .000018
+Pr(D | Doc) = (2/20*2/20*1*5/20*2/20*4/7) = .00014
+
+Based on these estimates, Democratic party did send the new email. 
+
+# Part 2
+## Question 2
+```{}
+yelp <- read.csv("yelp.csv")
+```
+### a - divide reviews at empirical median score: + if > median, - if <= median 
+```{}
+review_median <- median(yelp$stars)
+```
+code review score ("score") as 1 if stars > median and 0 if stars <= median
+```{}
+yelp <- yelp %>%  
+  mutate(yelp, score = ifelse(stars > review_median, "1", "0"))
+```
+### b - create anchor texts at the extreme of the distribution 
+code anchor such that 5 = positve, 1 = negative, and 2,3,4 = neutral
+```{}
+yelp <- yelp %>%  
+  mutate(yelp, anchor = ifelse(stars == "5", "positive",
+                               ifelse(stars == "1", "negative",
+                               ifelse(stars  %in% 1:5, "neutral"))))
+```
+find proportion of reviews that are anchor positive, neutral, negative 
+```{}
+prop.table(table(yelp$anchor))
+```
+negative = .0749
+neutral = .5914
+positive = .3337
+
+#Question 3: train a Naive Bayes classifier to predict if a review is positive or negative 
+Pre-Processing: for the following tasks, I perform standard pre-processing. I implement stemming to deal with the issue of sparsity; I remove punctuation to remove unnecessary noise in the data; and I remove stopwords. this is particularly important for these tasks because reviews are likely to have a significant number of common, but uninformative, words, which contribute noise and might reduce the models performance. 
+
+### a 
+create a training set that's 80% of the data
+```{}
+set.seed(1984L)
+prop_train <- 0.8
+id_yelp <- 1:nrow(yelp)
+id_train <- sample(id_yelp, ceiling(prop_train*length(id_yelp)), replace = FALSE)
+```
+establish training and test sets 
+```{}
+id_test <- id_yelp[-id_train]
+train_set <- yelp[id_train,]
+test_set <- yelp[id_test,]
+```
+produce dfm for the train and test sets
+initiate standard pre-processing: stem, remove punctuation, and remove stopwards to deal with sparsity 
+```{}
+train_dfm <- dfm(train_set$text, stem = TRUE, remove_punct = TRUE, remove = stopwords("english"))
+test_dfm <- dfm(test_set$text, stem = TRUE, remove_punct = TRUE, remove = stopwords("english"))
+```
+see how it looks 
+```{{}}
+as.matrix(train_dfm)[1:5,1:5]
+```
+align features of the dfm for the test set with the dfm for the train set
+```{}
+test_dfm <- dfm_match(test_dfm, features = featnames(train_dfm))
+```
+
+### With Smoothing
+
+train the model on the test set with Laplace smoothing in place, which means adding one to each count 
+```{}
+yelp_model_smoothe <- textmodel_nb(train_dfm, train_set$anchor, smooth = 0, prior = "docfreq")
+```
+evaluate on test set
+```{}
+predicted_class_smoothe <- predict(yelp_model_smoothe, newdata = test_dfm)
+```
+baseline -- This is important, to see how much our model beats a model that just picks the modal class 
+```{}
+baseline_accuracy <- max(prop.table(table(test_set$anchor)))
+```
+get confusion matrix
+```{}
+cmat_yelp_smoothe <- table(test_set$anchor, predicted_class_smoothe)
+yelp_acc_smoothe <- sum(diag(cmat_yelp_smoothe))/sum(cmat_yelp_smoothe) # accuracy = (TP + TN) / (TP + FP + TN + FN)
+yelp_recall_smoothe <- cmat_yelp_smoothe[2,2]/sum(cmat_yelp_smoothe[2,]) # recall = TP / (TP + FN)
+yelp_precision_smoothe <- cmat_yelp_smoothe[2,2]/sum(cmat_yelp_smoothe[,2]) # precision = TP / (TP + FP)
+yelp_f1_smoothe <- 2*(yelp_recall_smoothe*yelp_precision_smoothe)/(yelp_recall_smoothe + yelp_precision_smoothe)
+```
+print
+```{}
+cat(
+  "Baseline Accuracy: ", baseline_accuracy, "\n",
+  "Accuracy:",  yelp_acc_smoothe, "\n",
+  "Recall:",  yelp_recall_smoothe, "\n",
+  "Precision:",  yelp_precision_smoothe, "\n",
+  "F1-score:", yelp_f1_smoothe
+)
+```
+#### 3a. Report the accuracy, precision, recall and F1 score of your predictions. Include the confusion matrix in your answer.
+The yelp reviews are 7.49% negative, 59.14% neutral, and 33.37% positive. With docfreq, the classifier will be trained according to these proportions, meaning tha the training set will be composed of 7.5% negative, 59% neutral, and 33% positive reviews. I expect that there will be more negative reviews that are falsely predicted as one of the other categories with priors set to docfreq than was the case with uniform priors. 
+
+negative = .0749
+neutral = .5914
+positive = .3337
+
+Confusion Matrix 
+
+predicted_class_smoothe
+            negative neutral positive
+negative       47     105        6
+neutral        26     966      185
+positive        5     286      374
+
+Accuracy
+
+Baseline Accuracy:  0.5885 
+Accuracy: 0.6935 
+Recall: 0.8207307 
+Precision: 0.7118644 
+F1-score: 0.7624309
+
+### 3b - change priors from "uniform" to "docfreq" 
+
+Confusion Matrix 
+
+predicted_class_smoothe
+          negative neutral positive
+negative       33     122        3
+neutral        12    1017      148
+positive        3     332      330
+
+
+Accuracy 
+
+Baseline Accuracy:  0.5885 
+Accuracy: 0.69 
+Recall: 0.8640612 
+Precision: 0.6913664 
+F1-score: 0.7681269
+
+
+###3b. The classifiers with proportional priors and uniform priors both exhibit accuracy levels of .69
+
+### 3c - without smoothing 
+
+Baseline Accuracy:  0.5885 
+Accuracy: 0.546 
+Recall: 0.6584537 
+Precision: 0.6750871 
+F1-score: 0.6666667
+
+the classifier is 54.6% accurate, which is around 15% lower than the models with smoothing. Laplace smoothing works by ensuring that each word in the dataset is assigned a small non-zero probability in order to avoid the issues that would arise if a word in a test set did not appear in the training set. Thus, the classifier without smoothing is likely to be less accurate because the posterior probabilities for certain words occurring may be zero, which is not possible when Laplace smoothing is in place. 
+
+
+# 4 - Random Forest Classifier 
+look at dimensions of data set: 749 negative reviews, 5914 neutral reviews, and 3317 positive reviews
+```{}
+table(yelp$anchor)
+```
+
+Pre-Processing: replace apostrophes in text. I perform additional pre-processing below with the dfm function
+```{}
+yelp$text <- gsub(pattern = "'", "", yelp$text)  
+```
+check the proportion of anchor in reviews as I did in question 3: 74.9% negative, 
+```{}
+prop.table(table(yelp$anchor))
+```
+get a sense of the data: what does a positive review look like? a negative? 
+```{}
+dim(yelp)
+head(yelp$text[yelp$anchor == "positive"])
+head(yelp$text[yelp$anchor == "positive"])
+head(yelp$text[yelp$anchor == "negative"])
+head(yelp$text[yelp$anchor == "negative"])
+head(yelp$text[yelp$anchor == "neutral"])
+head(yelp$text[yelp$anchor == "neutral"])
+```
+initiate randomization
+```{}
+set.seed(1984)
+yelp <- yelp %>% sample_n(nrow(yelp))
+rownames(yelp) <- NULL
+```
+
+create document feature matrix and perform additional pre-processing: I implement stemming to deal with the issue of sparsity; I remove punctuation to remove unnecessary noise in the data; and I remove stopwords. this is particularly important for these tasks because reviews are likely to have a significant number of common, but uninformative, words, which contribute noise and might reduce the models performance. 
+```{}
+yelp_dfm <- dfm(yelp$text, stem = TRUE, remove_punct = TRUE, remove = stopwords("english")) %>% convert("matrix")
+```
+remove tokens that appear in fewer than 5 reviews. This serves the same function as Laplace smoothing. By ensuring that all tokens have appeared in a baseline number of reviews, I avoid the risk that the posterior probabilities will be zero, which would undermine the predictive power of the model by making it seem less accurate than it actually is 
+
+create a copy of yekp_dfm so that I have room to make mistakes while implementing model
+```{}
+common_tokens_rf <- yelp_dfm 
+```
+save tokens whose presence is greater than 0 as 1
+```{}
+common_tokens_rf[common_tokens_rf > 0] <- 1
+```
+sum up how many reviews each token appears in 
+```{}
+token_count <- apply(common_tokens_rf, 2, sum)
+````
+this gives us the tokens that appear in at least 5 reviews and reduces the size of our data substantially 
+```{}
+tokens <- names(which(token_count > 5))
+yelp_dfm <- yelp_dfm[,tokens]
+```
+```{}
+# caret package has it's own partitioning function
+# use the same set seed (randomization) and divide data into training and set sets
+set.seed(1984)
+reviews_train <- createDataPartition(1:nrow(yelp_dfm), p = 0.8, list = FALSE, times = 1)
+# training data
+review_train_x <- yelp_dfm[reviews_train, ] %>% as.data.frame() 
+# labels for training set 
+anchor_train <- yelp$anchor[reviews_train] %>% as.factor() 
+# testing data
+review_test_x <- yelp_dfm[-reviews_train, ]  %>% as.data.frame() 
+# labels for testing set
+anchor_test <- yelp$anchor[-reviews_train] %>% as.factor() # test set labels
+```
+Random Forest
+```{}
+library(randomForest)
+# set mtry to default, which is 7
+# mtry is the number of features sampled at each split (sqrt(ncol(train_x))
+mtry = sqrt(ncol(review_train_x))
+# set ntree to default, which is 501
+# number of trees to grow. More trees = better accuracy, but longer computation time
+ntree = 51
+set.seed(1984)
+# determines how long it will take to run the random forest model. this becomes more important as we work on larger datasets 
+system.time(rf.base <- randomForest(x = review_train_x, y = anchor_train, ntree = ntree, mtry = mtry))
+# random forest is valuable because it includes a built-in function for determining which tokens are most important in distinguishing between classes, 
+# which in this case are neutral, negative, and positive reviews 
+# here we are 
+token_importance <- round(importance(rf.base, 2), 2)
+# head provides top 5 tokens for distinguishing between classes
+head(rownames(token_importance)[order(-token_importance)])
+
+# print results
+print(rf.base)
+```
+```{}
+# plot importance
+# gini impurity = how "pure" is given node ~ class distribution
+# = 0 if all instances the node applies to are of the same class
+# upper bound depends on number of instances
+varImpPlot(rf.base, n.var = 10, main = "Variable Importance")
+```
+
+### 4b. The top 10 most important features are good, amaz, best, love pretti, great, like, horribl, decent, nice
+
+predict sentiment values and report confusion matrix 
+```{}
+predictions <- predict(rf.base, newdata = review_test_x)
+confusionmatrix <- confusionMatrix(predictions, anchor_test)
+```
+
+# Confusion matrix
+Confusion Matrix and Statistics
+
+Reference
+Prediction negative neutral positive
+negative        9       0        0
+neutral       139    1083      445
+positive        6      88      230
+
+accuracy, precision, recall, F1
+
+Accuracy :    0.661   
+
+### 4c. recall for positive class = true positive rate = TP / (TP + FN) = .3407
+
+### 4c. precision for positive class = ratio of positive predicted values for positive class = TP / (TP + FP) = 230/(230+445) = .7099
+
+### 4c. f1 = (2*Precision*Recall)/(Precision + Recall) = (2*.3407*.7099)/(.7099+.3407) = .4604
+
+# Part 3
+```{}
+#4. Collect novels by Dickens 
+library(gutenbergr)
+dickens_works <- gutenberg_works(author == "Dickens, Charles")
+# download six Dickens books individually and count the number of tokens 
+dickens <- gutenberg_download(dickens_works, meta_fields = "title")
+dickens_corpus <- corpus(dickens)
+# Christmas Carol 
+# filter all of dickens' work to extract A Christmas Carol 
+christmas <- filter(dickens, gutenberg_id == 46)
+# concatenate so that the book is a complete text as opposed to being organized such that each row is one sentence or word 
+christmas <- paste(christmas$text,collapse = " ")
+# create corpus for A Christmas Carol 
+christmas_corpus <- corpus(christmas)
+# create dfm for A Christmas Carol 
+christmas_dfm <- dfm(christmas_corpus)
+# count number of tokens 
+ntoken(christmas_dfm)
+# calculate lexical diversity 
+textstat_lexdiv(christmas_dfm)
+```
+### 4a. A Christmas Carol is made up of 35,341 tokens and has a TTR of .1537
+
+```{}
+# A Tale of Two Cities (98)
+# filter all of dickens' work to extract A Tale of Two Cities
+tale <-filter(dickens, gutenberg_id == 98)
+# concatenate so that the book is a complete text as opposed to being organized such that each row is one sentence or word 
+tale <-paste(tale$text,collapse = " ")
+# create a corpus for A Tale of Two Cities 
+tale_corpus <- corpus(tale)
+# creat dfm for A Tale of Two Cities 
+tale_dfm <- dfm(tale_corpus)
+# count number of tokens 
+ntoken(tale_dfm)
+# calculate lexical diversity 
+textstat_lexdiv(tale_dfm)
+```
+### 4a. A Tale of Two Cities is made up of 166,439 tokens and has a TTR of .0741
+
+```{}
+# The Mystery of Edwin Drood (564)
+# filter all of dickens' work to extract The Mystery of Edwin Drood 
+edwin <-filter(dickens, gutenberg_id == 564)
+# concatenate so that the book is a complete text as opposed to being organized such that each row is one sentence or word 
+edwin <-paste(edwin$text,collapse = " ")
+# create a corpus for The Mystery of Edwin Drood 
+edwin_corpus <- corpus(edwin)
+# create dfm for Edwin 
+edwin_dfm <- dfm(edwin_corpus)
+# count number of tokens 
+ntoken(edwin_dfm)
+# calculate lexical diversity 
+textstat_lexdiv(edwin_dfm)
+```
+### 4a. The Mystery of Edwin Drood is made up of 119,144 tokens and has a TTR of .1014
+
+```{}
+# The Pickwick Papers (580)
+# filter all of dickens' work to extract The Pickwick Papers 
+pickwick <-filter(dickens, gutenberg_id == 580)
+# concatenate so that the book is a complete text as opposed to being organized such that each row is one sentence or word 
+pickwick <-paste(pickwick$text,collapse = " ")
+# create a corpus for The Pickwick Papers 
+pickwick_corpus <- corpus(pickwick)
+# create a dfm for Pickwick 
+pickwick_dfm <- dfm(pickwick_corpus)
+# count number of tokens 
+ntoken(pickwick_dfm)
+# calculate lexical diversity 
+textstat_lexdiv(pickwick_dfm)
+```
+### 4a. The Pickwick Papers is made up of 385,019 tokens and has a TTR of .0547
+
+```{}
+# Oliver Twist (730)
+# filter all of dickens' work to extract the Pickwick Papers 
+oliver <-filter(dickens, gutenberg_id == 730)
+# concatenate so that the book is a complete text as opposed to being organized such that each row is one sentence or word 
+oliver <-paste(oliver$text,collapse = " ")
+# create a corpus for Oliver Twist 
+oliver_corpus <- corpus(oliver)
+# create a dfm for Oliver Twist 
+oliver_dfm <- dfm(oliver_corpus)
+# count number of tokens 
+ntoken(oliver_dfm)
+# calculate lexical diversity 
+textstat_lexdiv(oliver_dfm)
+```
+### 4a. Oliver Twist is made up of 198,286 tokens and has a TTR of .0691
+
+```{}
+# David Copperfield (766)
+# filter all of dickens work to extract David Copperfield 
+copper <-filter(dickens, gutenberg_id == 766)
+# concatenate so that the book is a complete text as opposed to being organized such that each row is one sentence or word 
+copper <-paste(copper$text,collapse = " ")
+# create a corpus for Oliver Twist 
+copper_corpus <- corpus(copper)
+# create a dfm for David Copperfield 
+copper_dfm <- dfm(copper_corpus)
+# count number of tokens 
+ntoken(copper_dfm)
+# calculate lexical diversity 
+textstat_lexdiv(copper_dfm)
+```
+### 4a. David Copperfield is made up of 438,988 tokens and has a TTR of .0427
+
+```{}
+# combine six unique dfms to create one dickens dfm 
+dickens_rows <- rbind(christmas_dfm, tale_dfm, edwin_dfm, pickwick_dfm, oliver_dfm, copper_dfm)
+rownames(dickens_rows) <- c("Christmas", "Tale", "Edwin", "Pickwick", "Oliver", "Copper")
+```
+```{}
+# calculate cosine similarity 
+dickens_tstat <- textstat_simil(dickens_rows, margin = "documents", method = "cosine")
+```
+
+### 4a. Oliver Twist and A Tale of Two Cities are the most similar to each other by cosine similarity 
+
+4a - most tokens, most lexically diverse, cosine similarity? 
+```{}
+## i. David Copperfield has the most tokens 
+## ii. A Christmas Carol is the most lexically diverse 
+## Oliver Twist and A Tale of Two Cities are the most similar by cosine similarity 
+```
+
+```{}
+# b - Flesch Reading Ease scores
+christmas_readab <- textstat_readability(christmas_corpus, measure = "Flesch")
+rownames(christmas_readab) <- "A Christmas Carol"
+christmas_readab$date <- "1843"
+tale_readab <- textstat_readability(tale_corpus, measure = "Flesch")
+rownames(tale_readab) <- "A Tale of Two Cities"
+tale_readab$date <- "1859"
+edwin_readab <- textstat_readability(edwin_corpus, measure = "Flesch")
+rownames(edwin_readab) <- "The Mystery of Edwin Drood"
+edwin_readab$date <- "1870"
+pickwick_readab <- textstat_readability(pickwick_corpus, measure = "Flesch")
+rownames(pickwick_readab) <- "The Pickwick Papers"
+pickwick_readab$date <- "1836"
+oliver_readab <- textstat_readability(oliver_corpus, measure = "Flesch")
+rownames(oliver_readab) <- "Oliver Twist"
+oliver_readab$date <- "1838"
+copper_readab <- textstat_readability(copper_corpus, measure = "Flesch")
+rownames(copper_readab) <- "David Copperfield"
+copper_readab$date <- "1849"
+# publication dates
+dickens_books <- rbind(christmas_readab, tale_readab, edwin_readab, pickwick_readab, oliver_readab, copper_readab)
+```
+plot Flesch 
+```{}
+plot <- plot(dickens_books$date, dickens_books$Flesch, xlab = "Publication Date" , ylab = "Flesch Reading Score", main = "Dickens' Readability Over Time", xlim=c(1830, 1875))
+text(dickens_books$date,dickens_books$Flesch, labels = rownames(dickens_books), cex=.7)
+```
+
+4b. 
+Based on the plot, it is not possible to discern whether Dickens became more or less complex over time. There are two clear irregularities in the Flesch Reading Index scores for the six Dickens books: The Pickwick Papers is much easier to read than the others while A Christmas Carol is much more complex. 
+
+# 5 
+```{}
+# download A Portrait of the Artist by James Joyce and Tom Sawyer by Mark Twain
+# Joyce
+library(tidytext)
+joyce <- gutenberg_works(author == "Joyce, James")
+joyce_books <- gutenberg_download(joyce, meta_fields = "title")
+portrait <-filter(joyce_books, gutenberg_id == 4217)
+# calculate word frequency distributions
+# Here I remove stopwords, which are typically not useful for the analysis as they are so common across texts (i.e. exhibit a high frequency without revealing much about the text)
+portrait_words <- portrait %>% 
+  tidytext:: unnest_tokens(word, text) %>% 
+  dplyr:: count(gutenberg_id, word, sort = TRUE) %>%
+  dplyr:: group_by(gutenberg_id) %>% 
+  dplyr:: mutate(total = sum(n)) %>% 
+  anti_join(stop_words, by = "word") 
+
+# Twain 
+twain <- gutenberg_works(author == "Twain, Mark")
+twain_books <- gutenberg_download(twain, meta_fields = "title")
+tom <-filter(twain_books, gutenberg_id == 74)
+# calculate word frequency distributions
+# Here I remove stopwords, which are typically not useful for the analysis as they are so common across texts (i.e. exhibit a high frequency without revealing much information about the text)
+tom_words <- tom %>% 
+  tidytext:: unnest_tokens(word, text) %>% 
+  dplyr:: count(gutenberg_id, word, sort = TRUE) %>%
+  dplyr:: group_by(gutenberg_id) %>% 
+  dplyr:: mutate(total = sum(n)) %>% 
+  anti_join(stop_words, by = "word") 
+```
+```{}
+# Zipfs Law states that the the frequency of a word is inversely proportional to its ranking among all the words in a document or across documents
+# calculate Zipf law for Joyce
+joyce_zip <- portrait_words %>% 
+  dplyr:: group_by(gutenberg_id) %>% 
+  dplyr::mutate(rank = row_number(), `term frequency` = n/total) %>%
+  dplyr::ungroup()
+# check it out 
+joyce_zip
+# calculate Zipf law for Twain
+twain_zip <- tom_words %>% 
+  dplyr:: group_by(gutenberg_id) %>% 
+  dplyr::mutate(rank = row_number(), `term frequency` = n/total) %>%
+  dplyr::ungroup()
+# check it out 
+joyce_zip
+```
+```{}
+# plot graphs of Zipfs law
+joyce_zip %>% 
+  ggplot(aes(rank, `term frequency`, color = gutenberg_id)) + 
+  geom_line(data = joyce_zip, size = 1.1, alpha = .8, show.legend = FALSE, color = "red") + 
+  geom_line(data = twain_zip, size = 1.1, alpha = .8, show.legend = FALSE, color = "blue") + 
+  theme(plot.title = element_text(size = 10, face = "bold")) + 
+  scale_x_log10() + scale_y_log10() + ggtitle("Zipfs Law in Joyce's A Portrait of the Artist (RED) and Twain's Tom Sawyer (BLUE)")
+```
+# 6 - Religion in Portrait of the Artist as a Young Man and Adventures of Tom Sawyer 
+
+```{}
+#create corpora for the two books 
+portrait_corpus <- corpus(portrait)
+tom_corpus <- corpus(tom)
+# create dfm for portrait and tom and remove punctuation
+
+# portrait 
+data(portrait_corpus, package = "quanteda.textmodels")
+dfm_portrait <- tokens(portrait_corpus, remove_punct = TRUE) %>%
+  tokens_remove(stopwords("en")) %>% 
+  dfm() %>%
+  dfm_trim(min_termfreq = 4, max_docfreq = 10)
+#tom 
+data(tom_corpus, package = "quanteda.textmodels")
+dfm_tom <- tokens(tom_corpus, remove_punct = TRUE) %>%
+  tokens_remove(stopwords("en")) %>% 
+  dfm() %>%
+  dfm_trim(min_termfreq = 4, max_docfreq = 10)
+
+install.packages("topicmodels")
+library(topicmodels)
+# classify 20 topics based on contents of Portrait of the Artist using Latent Dirichlet Allocation (LDA) to inform selection of words 
+lda_portrait <- convert(dfm_portrait, to = "topicmodels") %>% 
+  LDA(k = 20)
+# get top ten terms per topic
+get_terms(lda_portrait, 10)
+# Do the same for Tom Sawyer
+# classify 20 topics based on contents of Tom Sawyer using Latent Dirichlet Allocation (LDA) to inform selection of words
+lda_tom <- convert(dfm_tom, to = "topicmodels") %>% 
+  LDA(k = 20)
+# get top ten terms per topic
+get_terms(lda_tom, 10)
+
+# Words in Context
+# extract key words: Joyce: sinners, faith Twain: devil, lord
+
+# extract text from portrait of artist
+portrait_text <- portrait %>% dplyr::summarize(text = paste0(text, collapse = " ")) %>% 
+  stringr:: str_squish() 
+# name text 
+names(portrait_text) <- "A Portrait of the Artist as a Young Man"
+# extract text from tom sawyer
+tom_text <- tom %>% dplyr::summarize(text = paste0(text, collapse = " ")) %>% 
+  stringr:: str_squish() 
+# name text 
+names(tom_text) <- "The Adventures of Tom Sawyer"
+```
+```{}
+# extract instances of key words in portrait and tom
+#SINNERS in portrait
+sinners <- quanteda::kwic(portrait_text, "sinners") %>%
+  as.data.frame()
+# inspect data
+head(sinners)
+```
+
+Joyce states that "We are all sinners," a tenet of Christianity, however, he also distinguishes between different classes of sinners. For example, Joyce refers to "black sinners" as a subset of "all sinners." He also refers to sinners as "the miserable sinners" and "the suffering sinners," although it is not clear whether these are characteristics of "all sinners" or another subset of "all sinners" such as "black sinners." In Joyce's writing, sinners also face "eternal punishment" 
+
+```{}
+#SINNERS in Tom
+sin <- quanteda::kwic(tom_text, "sin") %>%
+  as.data.frame()
+# inspect data
+head(sin)
+```
+Neither "sinners" or "sinner" is not mentioned in The Adventures of Tom Sawyer. There are two instances of the word "sin" the first instance of "sin" in Tom Sawyer evokes the theme of penance found in A Portrait of the Artist. For example, Twain describes a character as "suffering for us both" as a result of a "sin" they committed. Twain also distinguishes between "sin" and virtue as a mode of characterizing human behavior. He writes, "it came without sin through virtuous efffort," which suggests that one can move between a state of sin and a state of virtue. By contrast, Joyce desribed "sin" as a constant state that one could not escape from 
+
+```{}
+#FAITH in portrait
+faith <- quanteda::kwic(portrait_text, "faith") %>%
+  as.data.frame()
+# inspect data
+head(faith)
+```
+
+Joyce describes "faith" as a force that transcends the natural state. For example, he writes that "faith" can "move mountains," which are a natural, fixedfeature of the world. Joyce also describes "faith" as something internal. For instance, Joyce writes of "an implicit faith amid the welter of sectarianism," which also conveys that sense of awe and transcendance conveyed in the first example. Additionally, Joyce describes "faith" as something that is chosen. He writes that someone "had the faith" and "had watched the faith." 
+
+```{}
+#FAITH in tom
+faith <- quanteda::kwic(tom_text, "faith") %>%
+  as.data.frame()
+# inspect data
+head(faith)
+```
+
+In Tom Sawyer, "faith" is also described as a construction internal to peoples' being. For example, Twain writes that "Tom's whole structure of faith was shaken to its foundations." Much like Joyce, this sentence communicates the idea that "faith" as something that is part of a being but not the being itself and that it is not permanent. Similarly, Twain later writes that "his faith was weakening," suggesting that it is not fixed but rather is vulnerable to external forces. Additionally, Twain suggests that "faith" is a choice, an idea capture in the phrase "pinned her faith," which evokes Joyce's communication of choice as central to faith as central to faith 
+
+```{}
+#DEVIL in Portrait 
+#SINNERS in portrait
+devil <- quanteda::kwic(portrait_text, "devil") %>%
+  as.data.frame()
+# inspect data
+head(devil)
+```
+
+Joyce writes of "the devil" and "a devil," which begs the question of whether the book adopts a monotheistic or polytheistic view of religion. 
+
+```{}
+#DEVIL in Tom
+devil <- quanteda::kwic(tom_text, "devil") %>%
+  as.data.frame()
+# inspect data
+head(devil)
+```
+
+Twain also writes of "the devil" and "a devil," but he also uses "devil" as a description of characters in the book. For example, he writes of "that injun devil" and "you devil." In both books, there seems to be an undercurrent of horror created by the existence of something bad and evil 
+
+```{}
+#LORD in Portrait 
+lord <- quanteda::kwic(portrait_text, "lord") %>%
+  as.data.frame()
+# inspect data
+head(lord)
+
+
+#LORD in Tom 
+lord <- quanteda::kwic(tom_text, "lord") %>%
+  as.data.frame()
+# inspect data
+head(lord)
+```
+
+In both books, "Lord" is always capitalized and is described as a singular entity. In Joyce, there is a direct appeal to the Lord that is less common in Tom Sawyer. For example, Joyce includes the phrase "O Lord", which is often prefaced by "Bless us." This seems to suggest that A Portrait of the Artist as A Young Man focuses on religion as a relationship, where the individual is communicating with God, or good and evil in a very personal way. By contrast, Twain's references to "Lord" are more commonly found in traditional religous refrains, such as "The Lord giveth and the Lord hath [taken away]" which might indicate that the topic of religion in The Adventures of Tom Sawyer is addressed as a much more institutional topic, rather than a personal one. It seems that characters in Joyce's book experience religion while characters in Tom Sawyer merely confront the topic or institution of religion
+
+
+
